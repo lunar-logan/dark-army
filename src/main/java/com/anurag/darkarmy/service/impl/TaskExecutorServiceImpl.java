@@ -9,13 +9,17 @@ import com.anurag.darkarmy.service.DefinitionService;
 import com.anurag.darkarmy.service.EndpointExecutorFactory;
 import com.anurag.darkarmy.service.EndpointExecutorService;
 import com.anurag.darkarmy.service.TaskExecutorService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
+import java.lang.invoke.MethodHandles;
 import java.util.Map;
-import java.util.Optional;
 
 @Service
 public class TaskExecutorServiceImpl implements TaskExecutorService {
+    private static final Logger log = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
     private final DefinitionService definitionService;
     private final EndpointExecutorFactory endpointExecutorFactory;
 
@@ -26,18 +30,14 @@ public class TaskExecutorServiceImpl implements TaskExecutorService {
 
     @Override
     public Map execute(TaskDef task, AggregationContext context) {
-        Optional<EndpointDef> maybeEndpoint = definitionService.fetchEndpoint(task.getEndpoint());
-        if (!maybeEndpoint.isPresent()) {
-            throw new SystemException("No endpoint found with ID: '" + task.getEndpoint() + "'");
-        }
+        EndpointDef endpoint = definitionService.fetchEndpoint(task.getEndpoint()).orElseThrow(() -> new SystemException(HttpStatus.BAD_REQUEST, "No endpoint found with ID: '" + task.getEndpoint() + "'"));
+        log.trace("Endpoint definition: {}", endpoint);
 
-        EndpointDef endpoint = maybeEndpoint.get();
-        Optional<EndpointExecutorService> maybeExecutor = endpointExecutorFactory.getInstance(endpoint);
-        if (!maybeExecutor.isPresent()) {
-            throw new SystemException("No executor found for endpoint type '" + endpoint.getType() + "'");
-        }
+        EndpointExecutorService executor = endpointExecutorFactory.getInstance(endpoint).orElseThrow(() -> new SystemException(HttpStatus.BAD_REQUEST, "No executor for endpoint type: '" + endpoint.getType() + "'"));
 
-        Map endpointResponse = maybeExecutor.get().execute(endpoint, context);
+        Map endpointResponse = executor.execute(endpoint, context);
+        log.trace("Endpoint ID: '{}', Response: {}", endpoint.getId(), endpointResponse);
+
         return AggregationUtil.buildOutput(task.getOutput(), endpointResponse);
     }
 }

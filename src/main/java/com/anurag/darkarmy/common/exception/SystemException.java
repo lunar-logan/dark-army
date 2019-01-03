@@ -16,6 +16,12 @@ public class SystemException extends RuntimeException {
         this.resource = null;
     }
 
+    public SystemException(HttpStatus status, String message) {
+        super(message);
+        this.status = status;
+        this.resource = null;
+    }
+
     public SystemException(String message) {
         super(message);
         this.status = HttpStatus.INTERNAL_SERVER_ERROR;
